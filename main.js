@@ -356,7 +356,10 @@ function extendCandlesWithWhitespace(candles, gridTimes) {
 }
 
 // ===== 取資料 =====
-const SPX_PROXY_ENDPOINT = 'http://localhost:3000/api/spx';
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const SPX_PROXY_ENDPOINT = IS_LOCAL 
+    ? 'http://localhost:3000/api/spx' 
+    : 'https://go-spxeps-backend.onrender.com/api/spx';
 
 async function fetchSpxData(range = '35y', interval = '1d') {
     const url = new URL(SPX_PROXY_ENDPOINT);
