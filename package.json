@@ -3,20 +3,15 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "proxy": "node spx-proxy.js",
+    "dev": "node spx-proxy.js",
     "start": "node spx-proxy.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "vite": "^6.4.1"
-  },
   "dependencies": {
-    "fancy-canvas": "^2.1.0",
     "xlsx": "^0.18.5"
   },
   "type": "module",

@@ -1,5 +1,5 @@
 // ===== Lightweight Charts =====
-import { CandlestickSeries, LineSeries, LineStyle, LineType, createChart } from './dist/lightweight-charts.production.mjs';
+import { CandlestickSeries, LineSeries, LineStyle, LineType, createChart } from './dist/lightweight-charts.standalone.production.mjs';
 
 // ===== Chart 基本設定 =====
 const container = document.getElementById('container');
@@ -356,13 +356,10 @@ function extendCandlesWithWhitespace(candles, gridTimes) {
 }
 
 // ===== 取資料 =====
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const SPX_PROXY_ENDPOINT = IS_LOCAL 
-    ? 'http://localhost:3000/api/spx' 
-    : 'https://go-spxeps-backend.onrender.com/api/spx';
+const SPX_PROXY_ENDPOINT = '/api/spx';
 
 async function fetchSpxData(range = '35y', interval = '1d') {
-    const url = new URL(SPX_PROXY_ENDPOINT);
+    const url = new URL(SPX_PROXY_ENDPOINT, window.location.href);
     url.searchParams.set('range', range);
     url.searchParams.set('interval', interval);
 

@@ -1,12 +1,62 @@
 import http from 'node:http';
-import { URL } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { URL, fileURLToPath } from 'node:url';
 import xlsx from 'xlsx';
-//sss
+
 const PORT = Number(process.env.PORT) || 3000;
 const YAHOO_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC';
 const EPS_SOURCE_URL = 'https://www.spglobal.com/spdji/en/documents/additional-material/sp-500-eps-est.xlsx';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const STATIC_ROOT = path.resolve(__dirname);
+const MIME_TYPES = {
+    '.css': 'text/css; charset=utf-8',
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.svg': 'image/svg+xml; charset=utf-8',
+};
 
 let workbookPromise;
+
+function resolveStaticPath(pathname) {
+    const requestedPath = pathname === '/' ? '/index.html' : pathname;
+    const candidate = path.resolve(STATIC_ROOT, `.${requestedPath}`);
+    const relativePath = path.relative(STATIC_ROOT, candidate);
+
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        return null;
+    }
+
+    return candidate;
+}
+
+async function serveStaticFile(pathname, response) {
+    const filePath = resolveStaticPath(pathname);
+    if (!filePath) {
+        return false;
+    }
+
+    try {
+        const content = await readFile(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+        response.writeHead(200, {
+            'content-type': contentType,
+            'cache-control': 'no-store',
+        });
+        response.end(content);
+        return true;
+    } catch (error) {
+        if (error?.code === 'ENOENT' || error?.code === 'EISDIR') {
+            return false;
+        }
+        throw error;
+    }
+}
 
 async function getWorkbook() {
     if (!workbookPromise) {
@@ -414,6 +464,10 @@ const server = http.createServer(async (request, response) => {
             return;
         }
 
+        if (request.method === 'GET' && await serveStaticFile(requestUrl.pathname, response)) {
+            return;
+        }
+
         if (request.method === 'OPTIONS') {
             response.writeHead(204, {
                 allow: 'GET,OPTIONS',
@@ -440,5 +494,5 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`SPX proxy server is running on http://localhost:${PORT}`);
+    console.log(`SPX app server is running on http://localhost:${PORT}`);
 });
