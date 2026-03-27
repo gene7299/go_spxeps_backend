@@ -1,15 +1,22 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import xlsx from 'xlsx';
 
 const PORT = Number(process.env.PORT) || 3000;
 const YAHOO_ENDPOINT = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC';
-const EPS_SOURCE_URL = 'https://www.spglobal.com/spdji/en/documents/additional-material/sp-500-eps-est.xlsx';
+const EPS_SOURCE_URL = 'https://raw.githubusercontent.com/gene7299/go_spxeps_backend/main/sp-500-eps-est.xlsx' || 'https://www.spglobal.com/spdji/en/documents/additional-material/sp-500-eps-est.xlsx';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_ROOT = path.resolve(__dirname);
+const EPS_LOCAL_FILE_FROM_ENV = process.env.EPS_LOCAL_FILE
+    ? path.resolve(process.env.EPS_LOCAL_FILE)
+    : null;
+const DEFAULT_EPS_LOCAL_FILES = [
+    path.resolve(__dirname, 'data', 'sp-500-eps-est.xlsx'),
+    path.resolve(__dirname, 'sp-500-eps-est.xlsx'),
+];
 const MIME_TYPES = {
     '.css': 'text/css; charset=utf-8',
     '.html': 'text/html; charset=utf-8',
@@ -20,6 +27,54 @@ const MIME_TYPES = {
 };
 
 let workbookPromise;
+
+async function fileExists(filePath) {
+    try {
+        await access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function readWorkbookFromFile(filePath) {
+    const buffer = await readFile(filePath);
+    return xlsx.read(buffer, { type: 'buffer', cellDates: false });
+}
+
+async function resolveLocalWorkbookPath() {
+    const candidates = [
+        EPS_LOCAL_FILE_FROM_ENV,
+        ...DEFAULT_EPS_LOCAL_FILES,
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+        if (await fileExists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return null;
+}
+
+async function downloadWorkbookFromRemote() {
+    const response = await fetch(EPS_SOURCE_URL, {
+        redirect: 'follow',
+        headers: {
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/123 Safari/537.36',
+            'accept-language': 'en-US,en;q=0.9',
+            referer: 'https://www.spglobal.com/spdji/en/'
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to download EPS workbook: ${response.status}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return xlsx.read(buffer, { type: 'buffer', cellDates: false });
+}
 
 function resolveStaticPath(pathname) {
     const requestedPath = pathname === '/' ? '/index.html' : pathname;
@@ -61,19 +116,23 @@ async function serveStaticFile(pathname, response) {
 async function getWorkbook() {
     if (!workbookPromise) {
         workbookPromise = (async () => {
-            const response = await fetch(EPS_SOURCE_URL, {
-                headers: {
-                    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'user-agent': 'Mozilla/5.0 LightweightChartsDemo',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to download EPS workbook: ${response.status}`);
+            const localWorkbookPath = await resolveLocalWorkbookPath();
+            if (localWorkbookPath) {
+                console.log(`Loading EPS workbook from local file: ${localWorkbookPath}`);
+                return readWorkbookFromFile(localWorkbookPath);
             }
 
-            const buffer = Buffer.from(await response.arrayBuffer());
-            return xlsx.read(buffer, { type: 'buffer', cellDates: false });
+            try {
+                console.log(`Downloading EPS workbook from remote source: ${EPS_SOURCE_URL}`);
+                return await downloadWorkbookFromRemote();
+            } catch (error) {
+                throw new Error(
+                    `${error.message}. ` +
+                    `Download the workbook in your browser and save it to ${DEFAULT_EPS_LOCAL_FILES[0]} ` +
+                    `or ${DEFAULT_EPS_LOCAL_FILES[1]}, ` +
+                    `or set EPS_LOCAL_FILE to another local path.`,
+                );
+            }
         })();
     }
 

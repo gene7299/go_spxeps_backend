@@ -6,6 +6,7 @@
     "proxy": "node spx-proxy.js",
     "dev": "node spx-proxy.js",
     "start": "node spx-proxy.js",
+    "sync:eps:github": "node scripts/upload-eps-to-github.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
